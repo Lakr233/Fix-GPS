@@ -85,22 +85,42 @@ struct WorkerView: View {
     @Binding var overwrite: Bool
     @Environment(\.dismiss) var dismiss
 
+    var lines: [String] {
+        worker.logs
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     var body: some View {
         VStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
+                Text("Execution Log").bold()
+                Spacer()
+            }
+            .padding()
+            Divider()
             ScrollView {
-                Text(worker.logs)
-                    .font(.system(.body, design: .monospaced, weight: .semibold))
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                ScrollViewReader { value in
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(lines, id: \.self) { line in
+                            Text(line)
+                        }
+                        Text("").id("EOF")
+                    }
+                    .font(.system(.footnote))
+                    .monospaced()
+                    .onChange(of: lines) { _, _ in
+                        value.scrollTo("EOF")
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             Divider()
             HStack(alignment: .center, spacing: 0) {
-                Text(worker.logs.components(separatedBy: "\n").filter { !$0.isEmpty }.last ?? "")
-                    .font(.system(.body, design: .monospaced, weight: .semibold))
-                    .lineLimit(1)
-                    .textSelection(.enabled)
                 Spacer()
-                Button("Done") {
+                Button("Close") {
                     dismiss()
                 }
                 .disabled(!worker.completed)

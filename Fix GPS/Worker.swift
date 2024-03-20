@@ -11,7 +11,7 @@ import CoreLocation
 import Foundation
 
 class Worker: ObservableObject {
-    @Published var logs: String = "[*] starting up\n"
+    @Published var logs: String = ""
     @Published var completed: Bool = false
 
     func print(_ items: Any..., separator: String = " ", terminator: String = "\n") {
@@ -157,6 +157,11 @@ class Worker: ObservableObject {
         }
 
         func appendingGPSData(imageFile: URL, lat: Double, lon: Double, alt: Double, overwrite: Bool = false) {
+            guard let fileAttributes = try? FileManager.default.attributesOfItem(atPath: imageFile.path) else {
+                print("[E] unable to read file attributes")
+                return
+            }
+
             guard let dataProvider = CGDataProvider(filename: imageFile.path),
                   let data = dataProvider.data,
                   let cgImage = NSImage(data: data as Data)?
@@ -187,7 +192,7 @@ class Worker: ObservableObject {
                 kCGImagePropertyGPSDictionary,
                 kCGImagePropertyGPSLongitude
             ) != nil {
-                print("[i] GPS data exists")
+                print("[i] GPS data already exists")
                 if !overwrite { return }
             }
 
@@ -234,6 +239,7 @@ class Worker: ObservableObject {
             do {
                 try FileManager.default.removeItem(at: imageFile)
                 try mutableData.write(toFile: imageFile.path)
+                try FileManager.default.setAttributes(fileAttributes, ofItemAtPath: imageFile.path)
             } catch {
                 print("[E] failed to write")
                 print(error.localizedDescription)

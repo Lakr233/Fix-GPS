@@ -152,6 +152,7 @@ class Worker: ObservableObject {
             }
             let str = date + " " + offset
             let fmt = DateFormatter()
+            fmt.locale = Locale(identifier: "en_US_POSIX")
             fmt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS Z"
             return fmt.date(from: str)
         }

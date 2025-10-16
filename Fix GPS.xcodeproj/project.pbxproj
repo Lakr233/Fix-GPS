@@ -3,28 +3,37 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		50EF8D8E2AF26AAA00C82A64 /* Fix_GPSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EF8D8D2AF26AAA00C82A64 /* Fix_GPSApp.swift */; };
-		50EF8D902AF26AAA00C82A64 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EF8D8F2AF26AAA00C82A64 /* ContentView.swift */; };
-		50EF8D922AF26AAB00C82A64 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 50EF8D912AF26AAB00C82A64 /* Assets.xcassets */; };
-		50EF8D952AF26AAB00C82A64 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 50EF8D942AF26AAB00C82A64 /* Preview Assets.xcassets */; };
-		50EF8D9D2AF26ABE00C82A64 /* Worker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EF8D9C2AF26ABE00C82A64 /* Worker.swift */; };
-/* End PBXBuildFile section */
+/* Begin PBXContainerItemProxy section */
+		506A8B152EA0A0AE00DB1CAF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 50EF8D822AF26AAA00C82A64 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 50EF8D892AF26AAA00C82A64;
+			remoteInfo = "Fix GPS";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		506A8B112EA0A0AE00DB1CAF /* Fix GPSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Fix GPSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		50EF8D8A2AF26AAA00C82A64 /* Fix GPS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Fix GPS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		50EF8D8D2AF26AAA00C82A64 /* Fix_GPSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fix_GPSApp.swift; sourceTree = "<group>"; };
-		50EF8D8F2AF26AAA00C82A64 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		50EF8D912AF26AAB00C82A64 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		50EF8D942AF26AAB00C82A64 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		50EF8D962AF26AAB00C82A64 /* Fix_GPS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Fix_GPS.entitlements; sourceTree = "<group>"; };
-		50EF8D9C2AF26ABE00C82A64 /* Worker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Worker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		506A8B122EA0A0AE00DB1CAF /* Fix GPSTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Fix GPSTests"; sourceTree = "<group>"; };
+		506A8B212EA0A0BA00DB1CAF /* Fix GPS */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Fix GPS"; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		506A8B0E2EA0A0AE00DB1CAF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		50EF8D872AF26AAA00C82A64 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -38,7 +47,8 @@
 		50EF8D812AF26AAA00C82A64 = {
 			isa = PBXGroup;
 			children = (
-				50EF8D8C2AF26AAA00C82A64 /* Fix GPS */,
+				506A8B212EA0A0BA00DB1CAF /* Fix GPS */,
+				506A8B122EA0A0AE00DB1CAF /* Fix GPSTests */,
 				50EF8D8B2AF26AAA00C82A64 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -47,34 +57,37 @@
 			isa = PBXGroup;
 			children = (
 				50EF8D8A2AF26AAA00C82A64 /* Fix GPS.app */,
+				506A8B112EA0A0AE00DB1CAF /* Fix GPSTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		50EF8D8C2AF26AAA00C82A64 /* Fix GPS */ = {
-			isa = PBXGroup;
-			children = (
-				50EF8D8D2AF26AAA00C82A64 /* Fix_GPSApp.swift */,
-				50EF8D8F2AF26AAA00C82A64 /* ContentView.swift */,
-				50EF8D9C2AF26ABE00C82A64 /* Worker.swift */,
-				50EF8D912AF26AAB00C82A64 /* Assets.xcassets */,
-				50EF8D962AF26AAB00C82A64 /* Fix_GPS.entitlements */,
-				50EF8D932AF26AAB00C82A64 /* Preview Content */,
-			);
-			path = "Fix GPS";
-			sourceTree = "<group>";
-		};
-		50EF8D932AF26AAB00C82A64 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				50EF8D942AF26AAB00C82A64 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		506A8B102EA0A0AE00DB1CAF /* Fix GPSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 506A8B172EA0A0AE00DB1CAF /* Build configuration list for PBXNativeTarget "Fix GPSTests" */;
+			buildPhases = (
+				506A8B0D2EA0A0AE00DB1CAF /* Sources */,
+				506A8B0E2EA0A0AE00DB1CAF /* Frameworks */,
+				506A8B0F2EA0A0AE00DB1CAF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				506A8B162EA0A0AE00DB1CAF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				506A8B122EA0A0AE00DB1CAF /* Fix GPSTests */,
+			);
+			name = "Fix GPSTests";
+			packageProductDependencies = (
+			);
+			productName = "Fix GPSTests";
+			productReference = 506A8B112EA0A0AE00DB1CAF /* Fix GPSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		50EF8D892AF26AAA00C82A64 /* Fix GPS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 50EF8D992AF26AAB00C82A64 /* Build configuration list for PBXNativeTarget "Fix GPS" */;
@@ -86,6 +99,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				506A8B212EA0A0BA00DB1CAF /* Fix GPS */,
 			);
 			name = "Fix GPS";
 			productName = "Fix GPS";
@@ -99,9 +115,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					506A8B102EA0A0AE00DB1CAF = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 50EF8D892AF26AAA00C82A64;
+					};
 					50EF8D892AF26AAA00C82A64 = {
 						CreatedOnToolsVersion = 15.0.1;
 					};
@@ -121,36 +141,96 @@
 			projectRoot = "";
 			targets = (
 				50EF8D892AF26AAA00C82A64 /* Fix GPS */,
+				506A8B102EA0A0AE00DB1CAF /* Fix GPSTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		506A8B0F2EA0A0AE00DB1CAF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		50EF8D882AF26AAA00C82A64 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				50EF8D952AF26AAB00C82A64 /* Preview Assets.xcassets in Resources */,
-				50EF8D922AF26AAB00C82A64 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		506A8B0D2EA0A0AE00DB1CAF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		50EF8D862AF26AAA00C82A64 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				50EF8D902AF26AAA00C82A64 /* ContentView.swift in Sources */,
-				50EF8D9D2AF26ABE00C82A64 /* Worker.swift in Sources */,
-				50EF8D8E2AF26AAA00C82A64 /* Fix_GPSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		506A8B162EA0A0AE00DB1CAF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 50EF8D892AF26AAA00C82A64 /* Fix GPS */;
+			targetProxy = 506A8B152EA0A0AE00DB1CAF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		506A8B182EA0A0AE00DB1CAF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 964G86XT2P;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "wiki.qaq.Fix-GPSTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fix GPS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fix GPS";
+			};
+			name = Debug;
+		};
+		506A8B192EA0A0AE00DB1CAF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 964G86XT2P;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "wiki.qaq.Fix-GPSTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fix GPS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fix GPS";
+			};
+			name = Release;
+		};
 		50EF8D972AF26AAB00C82A64 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -185,7 +265,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 964G86XT2P;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -209,6 +291,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -248,7 +331,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 964G86XT2P;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -265,6 +350,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -274,12 +360,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Fix GPS/Fix_GPS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Fix GPS/Entitlements.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Fix GPS/Preview Content\"";
-				DEVELOPMENT_TEAM = 964G86XT2P;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -302,12 +387,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Fix GPS/Fix_GPS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Fix GPS/Entitlements.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Fix GPS/Preview Content\"";
-				DEVELOPMENT_TEAM = 964G86XT2P;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -328,6 +412,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		506A8B172EA0A0AE00DB1CAF /* Build configuration list for PBXNativeTarget "Fix GPSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				506A8B182EA0A0AE00DB1CAF /* Debug */,
+				506A8B192EA0A0AE00DB1CAF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		50EF8D852AF26AAA00C82A64 /* Build configuration list for PBXProject "Fix GPS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

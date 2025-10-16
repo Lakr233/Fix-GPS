@@ -9,6 +9,7 @@ import AppKit
 import Cocoa
 import CoreLocation
 import Foundation
+import Combine
 
 class Worker: ObservableObject {
     @Published var logs: String = ""
@@ -31,6 +32,90 @@ class Worker: ObservableObject {
         DispatchQueue.global().async {
             self.executeCommandLineEx(locationRecord: locationRecord, photoDirectory: photoDirectory, overwrite: overwrite)
         }
+    }
+
+    // Exposed for testing: read capture timestamp from image metadata (JPEG/HEIC/HEIF)
+    func readingTimestamp(imageFile: URL) -> Date? {
+        guard let dataProvider = CGDataProvider(filename: imageFile.path),
+              let data = dataProvider.data,
+              let imageSource = CGImageSourceCreateWithData(data, nil) else {
+            print("[E] unable to load image")
+            return nil
+        }
+
+        guard let props = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any] else {
+            print("[E] unable to read image properties")
+            return nil
+        }
+
+        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+
+        let dateCandidates: [String?] = [
+            (exif?[kCGImagePropertyExifDateTimeOriginal] as? String),
+            (exif?[kCGImagePropertyExifDateTimeDigitized] as? String),
+            (tiff?[kCGImagePropertyTIFFDateTime] as? String)
+        ]
+
+        let offsetCandidates: [String?] = [
+            (exif?[kCGImagePropertyExifOffsetTimeOriginal] as? String),
+            (exif?[kCGImagePropertyExifOffsetTimeDigitized] as? String),
+            (exif?[kCGImagePropertyExifOffsetTime] as? String)
+        ]
+
+        let subsecCandidates: [String?] = [
+            (exif?[kCGImagePropertyExifSubsecTimeOriginal] as? String),
+            (exif?[kCGImagePropertyExifSubsecTimeDigitized] as? String),
+            (exif?[kCGImagePropertyExifSubsecTime] as? String)
+        ]
+
+        guard let rawDate = dateCandidates.compactMap({ $0 }).first else {
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: imageFile.path) {
+                if let c = attrs[.creationDate] as? Date { return c }
+                if let m = attrs[.modificationDate] as? Date { return m }
+            }
+            return nil
+        }
+
+        let subsec = subsecCandidates.compactMap({ $0 }).first
+        let offset = offsetCandidates.compactMap({ $0 }).first
+
+        var candidateStrings: [String] = []
+        if let sub = subsec, !sub.isEmpty {
+            if let off = offset, !off.isEmpty {
+                candidateStrings.append("\(rawDate).\(sub) \(off)")
+            }
+            candidateStrings.append("\(rawDate).\(sub)")
+        } else {
+            if let off = offset, !off.isEmpty {
+                candidateStrings.append("\(rawDate) \(off)")
+            }
+            candidateStrings.append(rawDate)
+        }
+
+        let fmts = [
+            "yyyy:MM:dd HH:mm:ss.SSS ZZZZZ",
+            "yyyy:MM:dd HH:mm:ss.SSS",
+            "yyyy:MM:dd HH:mm:ss ZZZZZ",
+            "yyyy:MM:dd HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS ZZZZZ",
+            "yyyy-MM-dd'T'HH:mm:ss ZZZZZ",
+            "yyyy-MM-dd'T'HH:mm:ss"
+        ]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        for s in candidateStrings {
+            for f in fmts {
+                formatter.dateFormat = f
+                if let d = formatter.date(from: s) { return d }
+            }
+        }
+
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: imageFile.path) {
+            if let c = attrs[.creationDate] as? Date { return c }
+            if let m = attrs[.modificationDate] as? Date { return m }
+        }
+        return nil
     }
 
     func executeCommandLineEx(locationRecord: String, photoDirectory: String, overwrite: Bool = false) {
@@ -123,39 +208,7 @@ class Worker: ObservableObject {
             return candidate
         }
 
-        func readingTimestamp(imageFile: URL) -> Date? {
-            guard let dataProvider = CGDataProvider(filename: imageFile.path),
-                  let data = dataProvider.data,
-                  let imageSource = CGImageSourceCreateWithData(data, nil),
-                  let imageProperties = CGImageSourceCopyMetadataAtIndex(imageSource, 0, nil)
-            else {
-                print("[E] unable to load image")
-                return nil
-            }
-            guard let dateTag = CGImageMetadataCopyTagMatchingImageProperty(
-                imageProperties,
-                kCGImagePropertyExifDictionary,
-                kCGImagePropertyExifDateTimeDigitized
-            ), let offsetTag = CGImageMetadataCopyTagMatchingImageProperty(
-                imageProperties,
-                kCGImagePropertyExifDictionary,
-                kCGImagePropertyExifOffsetTimeDigitized
-            ) else {
-                print("[E] unable to read image tags")
-                return nil
-            }
-            let date = CGImageMetadataTagCopyValue(dateTag) as? String
-            let offset = CGImageMetadataTagCopyValue(offsetTag) as? String
-            guard let date, let offset else {
-                print("[E] unable to read image date")
-                return nil
-            }
-            let str = date + " " + offset
-            let fmt = DateFormatter()
-            fmt.locale = Locale(identifier: "en_US_POSIX")
-            fmt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS Z"
-            return fmt.date(from: str)
-        }
+        // readingTimestamp now available as instance method
 
         func appendingGPSData(imageFile: URL, lat: Double, lon: Double, alt: Double, overwrite: Bool = false) {
             guard let fileAttributes = try? FileManager.default.attributesOfItem(atPath: imageFile.path) else {
@@ -165,17 +218,10 @@ class Worker: ObservableObject {
 
             guard let dataProvider = CGDataProvider(filename: imageFile.path),
                   let data = dataProvider.data,
-                  let cgImage = NSImage(data: data as Data)?
-                  .cgImage(forProposedRect: nil, context: nil, hints: nil)
-            else {
-                print("[E] unable to prepare data")
-                return
-            }
-
-            let mutableData = NSMutableData(data: data as Data)
-
-            guard let imageSource = CGImageSourceCreateWithData(data, nil),
+                  let imageSource = CGImageSourceCreateWithData(data, nil),
                   let type = CGImageSourceGetType(imageSource),
+                  let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil),
+                  let mutableData = CFDataCreateMutable(kCFAllocatorDefault, 0),
                   let imageDestination = CGImageDestinationCreateWithData(mutableData, type, 1, nil),
                   let imageProperties = CGImageSourceCopyMetadataAtIndex(imageSource, 0, nil),
                   let mutableMetadata = CGImageMetadataCreateMutableCopy(imageProperties)
@@ -238,8 +284,10 @@ class Worker: ObservableObject {
             }
 
             do {
-                try FileManager.default.removeItem(at: imageFile)
-                try mutableData.write(toFile: imageFile.path)
+                // Write atomically by replacing the original file
+                let tmpURL = imageFile.deletingLastPathComponent().appendingPathComponent(".tmp_\(UUID().uuidString)")
+                try (mutableData as NSData as Data).write(to: tmpURL)
+                let _ = try FileManager.default.replaceItemAt(imageFile, withItemAt: tmpURL)
                 try FileManager.default.setAttributes(fileAttributes, ofItemAtPath: imageFile.path)
             } catch {
                 print("[E] failed to write")
@@ -254,8 +302,10 @@ class Worker: ObservableObject {
 
         let enumerator = FileManager.default.enumerator(atPath: searchDir.path)
         var candidates = [URL]()
+        let supportedExtensions: Set<String> = ["jpg", "jpeg", "heic", "heif"]
         while let subPath = enumerator?.nextObject() as? String {
-            guard subPath.lowercased().hasSuffix("jpg") || subPath.lowercased().hasSuffix("jpeg") else { continue }
+            let lower = subPath.lowercased()
+            guard let ext = lower.split(separator: ".").last.map(String.init), supportedExtensions.contains(ext) else { continue }
             let file = searchDir.appendingPathComponent(subPath)
             candidates.append(file)
         }
@@ -271,7 +321,7 @@ class Worker: ObservableObject {
         for (idx, url) in candidates.enumerated() {
             print("[*] processing \(idx.paddedString(totalLength: paddingLength))/\(candidates.count) <\(url.lastPathComponent)>")
             autoreleasepool {
-                guard let date = readingTimestamp(imageFile: url) else {
+                guard let date = self.readingTimestamp(imageFile: url) else {
                     return
                 }
                 guard let location = obtainNearestLocation(forTimestamp: date.timeIntervalSince1970) else {

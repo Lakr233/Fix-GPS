@@ -7,8 +7,7 @@
 
 import SwiftUI
 
-@main
-struct Fix_GPSApp: App {
+struct FixerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -17,3 +16,5 @@ struct Fix_GPSApp: App {
         .windowStyle(.hiddenTitleBar)
     }
 }
+
+FixerApp.main()

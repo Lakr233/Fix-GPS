@@ -5,6 +5,7 @@
 //  Created by QAQ on 2023/11/1.
 //
 
+import CoreLocation
 import Foundation
 import Photos
 import PhotosUI
@@ -66,82 +67,76 @@ extension ViewModel {
     }
 
     private func processAsset(asset: PHAsset, locationList: [LocationRecord], overwrite: Bool) async -> Bool {
-        let options = PHContentEditingInputRequestOptions()
-        options.isNetworkAccessAllowed = true
+        if asset.location != nil, !overwrite {
+            print("[i] photo already has location, skipping (overwrite=false)")
+            return false
+        }
 
-        return await withCheckedContinuation { continuation in
-            asset.requestContentEditingInput(with: options) { [self] input, _ in
-                guard let input,
-                      let url = input.fullSizeImageURL,
-                      let data = try? Data(contentsOf: url)
-                else {
-                    print("[E] unable to get photo data")
-                    continuation.resume(returning: false)
+        guard let timestamp = await getAssetTimestamp(asset: asset) else {
+            print("[E] unable to read photo timestamp")
+            return false
+        }
+
+        print("[*] photo timestamp: \(timestamp)")
+
+        guard let location = obtainNearestLocation(
+            forTimestamp: timestamp.timeIntervalSince1970,
+            in: locationList
+        ) else {
+            print("[E] unable to find matching gps location (timestamp: \(timestamp.timeIntervalSince1970))")
+            return false
+        }
+
+        print("[*] matched location: lat=\(location.latitude), lon=\(location.longitude), alt=\(location.altitude)")
+
+        let clLocation = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude),
+            altitude: location.altitude,
+            horizontalAccuracy: 0,
+            verticalAccuracy: 0,
+            timestamp: timestamp
+        )
+
+        do {
+            try await writeGPSLocation(to: asset, location: clLocation)
+            print("[+] photo location updated in library")
+            return true
+        } catch {
+            print("[E] failed to update photo location: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func getAssetTimestamp(asset: PHAsset) async -> Date? {
+        await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.isSynchronous = false
+            options.version = .current
+            options.isNetworkAccessAllowed = true
+
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { [self] data, _, _, _ in
+                guard let data else {
+                    continuation.resume(returning: asset.creationDate)
                     return
                 }
+                let timestamp = readingTimestamp(imageData: data)
+                continuation.resume(returning: timestamp ?? asset.creationDate)
+            }
+        }
+    }
 
-                print("[*] photo data size: \(data.count) bytes")
-
-                guard let timestamp = readingTimestamp(imageData: data) else {
-                    print("[E] unable to read photo timestamp")
-                    continuation.resume(returning: false)
-                    return
-                }
-
-                print("[*] photo timestamp: \(timestamp)")
-
-                guard let location = obtainNearestLocation(
-                    forTimestamp: timestamp.timeIntervalSince1970,
-                    in: locationList
-                ) else {
-                    print("[E] unable to find matching gps location (timestamp: \(timestamp.timeIntervalSince1970))")
-                    continuation.resume(returning: false)
-                    return
-                }
-
-                print("[*] matched location: lat=\(location.latitude), lon=\(location.longitude), alt=\(location.altitude)")
-
-                guard let modifiedData = appendingGPSData(
-                    imageData: data,
-                    location: location,
-                    overwrite: overwrite
-                ) else {
-                    print("[E] failed to write gps data to photo (overwrite=\(overwrite))")
-                    continuation.resume(returning: false)
-                    return
-                }
-
-                print("[*] gps data written to photo, saving to library...")
-                print("[*] modified data size: \(modifiedData.count) bytes")
-
-                let output = PHContentEditingOutput(contentEditingInput: input)
-                output.adjustmentData = PHAdjustmentData(
-                    formatIdentifier: "wiki.qaq.Fix-GPS",
-                    formatVersion: "1.0",
-                    data: "GPS".data(using: .utf8)!
-                )
-
-                do {
-                    try modifiedData.write(to: output.renderedContentURL)
-                } catch {
-                    print("[E] failed to write modified data: \(error.localizedDescription)")
-                    continuation.resume(returning: false)
-                    return
-                }
-
-                PHPhotoLibrary.shared().performChanges {
-                    let request = PHAssetChangeRequest(for: asset)
-                    request.contentEditingOutput = output
-                } completionHandler: { success, error in
-                    if success {
-                        self.print("[+] photo updated in library successfully")
-                    } else {
-                        self.print("[E] failed to update photo in library")
-                        if let error {
-                            self.print("[E] error details: \(error.localizedDescription)")
-                        }
-                    }
-                    continuation.resume(returning: success)
+    private func writeGPSLocation(to asset: PHAsset, location: CLLocation) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetChangeRequest(for: asset)
+                request.location = location
+            } completionHandler: { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if !success {
+                    continuation.resume(throwing: NSError(domain: "PhotoLibrary", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown error"]))
+                } else {
+                    continuation.resume()
                 }
             }
         }

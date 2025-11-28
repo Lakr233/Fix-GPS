@@ -5,6 +5,7 @@
 //  Created by QAQ on 2023/11/1.
 //
 
+import Photos
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -24,6 +25,8 @@ struct ContentView: View {
     @State var photoPickerItems: [PhotosPickerItem] = []
     @State var photoPickerProcessing = false
     @State var photoPickerResult: PhotoPickerResult?
+    @State var showPhotosPicker = false
+    @State var showPermissionAlert = false
 
     private var canRun: Bool {
         !gpsLocation.isEmpty && !pictureDirectory.isEmpty
@@ -67,18 +70,22 @@ struct ContentView: View {
                         }
                     }
                 }
-                PhotosPicker(
-                    selection: $photoPickerItems,
-                    matching: .images,
-                    photoLibrary: .shared(),
-                ) {
+                Button {
+                    checkPhotoLibraryPermission()
+                } label: {
                     Text("Or select photos from System Library")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
                         .underline()
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .disabled(gpsLocation.isEmpty)
+                .photosPicker(
+                    isPresented: $showPhotosPicker,
+                    selection: $photoPickerItems,
+                    matching: .images,
+                    photoLibrary: .shared()
+                )
                 .onChange(of: photoPickerItems) { _, items in
                     guard !items.isEmpty else { return }
                     processPhotoPicker(items: items)
@@ -129,6 +136,36 @@ struct ContentView: View {
             if let result = photoPickerResult {
                 Text("\(result.successCount) updated, \(result.errorCount) error(s)")
             }
+        }
+        .alert("Permission Required", isPresented: $showPermissionAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Full photo library access is required to modify photos. Please grant access in System Settings.")
+        }
+    }
+
+    private func checkPhotoLibraryPermission() {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        switch status {
+        case .authorized:
+            showPhotosPicker = true
+        case .notDetermined:
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { newStatus in
+                DispatchQueue.main.async {
+                    if newStatus == .authorized {
+                        showPhotosPicker = true
+                    } else {
+                        showPermissionAlert = true
+                    }
+                }
+            }
+        default:
+            showPermissionAlert = true
         }
     }
 

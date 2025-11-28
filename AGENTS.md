@@ -47,3 +47,28 @@
 - `unowned` when guaranteed non-nil
 - Capture lists in closures
 - `deinit` for cleanup
+
+# Shell Script Style
+
+## Core Principles
+
+- **Simplicity**: Keep scripts minimal and focused
+- **No unnecessary complexity**: Avoid features that aren't needed
+- **Visual clarity**: Use line breaks for readability
+- **Failure handling**: Use `set -euo pipefail`
+- **Use shebang for scripts**: Use `#!/bin/zsh`
+
+## Output Guidelines
+
+- Use `[+]` for successful operations
+- Use `[-]` for failed operations (when needed)
+- Keep echo messages lowercase
+- Simple status messages: "building...", "completed successfully"
+
+## Code Style
+
+- Minimal comments - focus on self-evident code
+- No unnecessary color output or visual fluff
+- Line breaks for long command chains
+- Assume required tools are available (e.g., xcbeautify)
+- Don't add if checks when pipefail handles failures

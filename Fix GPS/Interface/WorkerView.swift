@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct WorkerView: View {
-    @StateObject var worker = Worker()
+    @State var worker = ViewModel()
     @Binding var gpsLocation: String
     @Binding var pictureDirectory: String
     @Binding var overwrite: Bool

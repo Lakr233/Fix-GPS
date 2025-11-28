@@ -149,7 +149,7 @@ final class WriteGPSTests: XCTestCase {
         try copyTestImage(to: imageURL)
 
         // Write first GPS
-        let worker = Worker()
+        let worker = ViewModel()
         let ts = try getImageTimestamp(from: imageURL)
         let csv1 = createCSV(timestamp: ts, lon: 139.0, lat: 35.0, alt: 10.0)
         let csvURL = tmpDir.appendingPathComponent("record1.csv")
@@ -173,7 +173,7 @@ final class WriteGPSTests: XCTestCase {
         let imageURL = tmpDir.appendingPathComponent("test_overwrite.heic")
         try copyTestImage(to: imageURL)
 
-        let worker = Worker()
+        let worker = ViewModel()
         let ts = try getImageTimestamp(from: imageURL)
 
         // Write first GPS
@@ -201,7 +201,7 @@ final class WriteGPSTests: XCTestCase {
         let imageURL = tmpDir.appendingPathComponent("test_timestamp.heic")
         try copyTestImage(to: imageURL)
 
-        let worker = Worker()
+        let worker = ViewModel()
         let timestamp = worker.readingTimestamp(imageFile: imageURL)
 
         XCTAssertNotNil(timestamp)
@@ -220,7 +220,7 @@ final class WriteGPSTests: XCTestCase {
     }
 
     private func getImageTimestamp(from url: URL) throws -> Double {
-        let worker = Worker()
+        let worker = ViewModel()
         guard let date = worker.readingTimestamp(imageFile: url) else {
             throw NSError(domain: "FixGPSTests", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to read timestamp"])
         }
@@ -237,7 +237,7 @@ final class WriteGPSTests: XCTestCase {
         let imageURL = tmpDir.appendingPathComponent("test_\(UUID().uuidString).heic")
         try copyTestImage(to: imageURL)
 
-        let worker = Worker()
+        let worker = ViewModel()
         let ts = try getImageTimestamp(from: imageURL)
         let csv = createCSV(timestamp: ts, lon: longitude, lat: latitude, alt: altitude)
         let csvURL = tmpDir.appendingPathComponent("record_\(UUID().uuidString).csv")
@@ -252,7 +252,7 @@ final class WriteGPSTests: XCTestCase {
         let imageURL = tmpDir.appendingPathComponent("test_\(UUID().uuidString).heic")
         try copyTestImage(to: imageURL)
 
-        let worker = Worker()
+        let worker = ViewModel()
         let ts = try getImageTimestamp(from: imageURL)
 
         // Replace timestamp in CSV content

@@ -43,7 +43,6 @@ struct ContentView: View {
                         }
                     }
                 }
-                FileStatusView(path: gpsLocation)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -63,7 +62,6 @@ struct ContentView: View {
                         }
                     }
                 }
-                FileStatusView(path: pictureDirectory, isDirectory: true)
             }
 
             Divider().padding(.horizontal, -64)

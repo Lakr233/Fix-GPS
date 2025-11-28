@@ -23,39 +23,16 @@ extension ViewModel {
             return nil
         }
 
-        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any]
-        let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+        return extractTimestamp(from: props)
+    }
 
-        let dateCandidates: [String?] = [
-            exif?[kCGImagePropertyExifDateTimeOriginal] as? String,
-            exif?[kCGImagePropertyExifDateTimeDigitized] as? String,
-            tiff?[kCGImagePropertyTIFFDateTime] as? String,
-        ]
-
-        let offsetCandidates: [String?] = [
-            exif?[kCGImagePropertyExifOffsetTimeOriginal] as? String,
-            exif?[kCGImagePropertyExifOffsetTimeDigitized] as? String,
-            exif?[kCGImagePropertyExifOffsetTime] as? String,
-        ]
-
-        let subsecCandidates: [String?] = [
-            exif?[kCGImagePropertyExifSubsecTimeOriginal] as? String,
-            exif?[kCGImagePropertyExifSubsecTimeDigitized] as? String,
-            exif?[kCGImagePropertyExifSubsecTime] as? String,
-        ]
-
-        guard let rawDate = dateCandidates.compactMap(\.self).first else {
-            return readFileDateFallback(imageFile: imageFile)
+    func readingTimestamp(imageData: Data) -> Date? {
+        guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any]
+        else {
+            return nil
         }
-
-        let subsec = subsecCandidates.compactMap(\.self).first
-        let offset = offsetCandidates.compactMap(\.self).first
-
-        if let date = parseExifDate(rawDate: rawDate, subsec: subsec, offset: offset) {
-            return date
-        }
-
-        return readFileDateFallback(imageFile: imageFile)
+        return extractTimestamp(from: props)
     }
 
     func appendingGPSData(imageFile: URL, lat: Double, lon: Double, alt: Double, overwrite: Bool = false) {
@@ -107,13 +84,67 @@ extension ViewModel {
         print("[*] image meta data updated")
     }
 
-    private func readFileDateFallback(imageFile: URL) -> Date? {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: imageFile.path) else {
+    func appendingGPSData(imageData: Data, location: LocationRecord, overwrite: Bool) -> Data? {
+        guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
+              let type = CGImageSourceGetType(imageSource),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil),
+              let mutableData = CFDataCreateMutable(kCFAllocatorDefault, 0),
+              let imageDestination = CGImageDestinationCreateWithData(mutableData, type, 1, nil),
+              let imageProperties = CGImageSourceCopyMetadataAtIndex(imageSource, 0, nil),
+              let mutableMetadata = CGImageMetadataCreateMutableCopy(imageProperties)
+        else {
             return nil
         }
-        if let c = attrs[.creationDate] as? Date { return c }
-        if let m = attrs[.modificationDate] as? Date { return m }
-        return nil
+
+        if hasExistingGPSData(imageProperties: imageProperties), !overwrite {
+            return nil
+        }
+
+        writeGPSMetadata(
+            to: mutableMetadata,
+            lat: location.latitude,
+            lon: location.longitude,
+            alt: location.altitude,
+        )
+
+        let finalMetadata = mutableMetadata as CGImageMetadata
+        CGImageDestinationAddImageAndMetadata(imageDestination, cgImage, finalMetadata, nil)
+
+        guard CGImageDestinationFinalize(imageDestination) else { return nil }
+
+        return mutableData as Data
+    }
+
+    private func extractTimestamp(from props: [CFString: Any]) -> Date? {
+        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+
+        let dateCandidates: [String?] = [
+            exif?[kCGImagePropertyExifDateTimeOriginal] as? String,
+            exif?[kCGImagePropertyExifDateTimeDigitized] as? String,
+            tiff?[kCGImagePropertyTIFFDateTime] as? String,
+        ]
+
+        let offsetCandidates: [String?] = [
+            exif?[kCGImagePropertyExifOffsetTimeOriginal] as? String,
+            exif?[kCGImagePropertyExifOffsetTimeDigitized] as? String,
+            exif?[kCGImagePropertyExifOffsetTime] as? String,
+        ]
+
+        let subsecCandidates: [String?] = [
+            exif?[kCGImagePropertyExifSubsecTimeOriginal] as? String,
+            exif?[kCGImagePropertyExifSubsecTimeDigitized] as? String,
+            exif?[kCGImagePropertyExifSubsecTime] as? String,
+        ]
+
+        guard let rawDate = dateCandidates.compactMap(\.self).first else {
+            return nil
+        }
+
+        let subsec = subsecCandidates.compactMap(\.self).first
+        let offset = offsetCandidates.compactMap(\.self).first
+
+        return parseExifDate(rawDate: rawDate, subsec: subsec, offset: offset)
     }
 
     private func parseExifDate(rawDate: String, subsec: String?, offset: String?) -> Date? {

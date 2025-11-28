@@ -5,6 +5,7 @@
 //  Created by QAQ on 2023/11/1.
 //
 
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -19,6 +20,10 @@ struct ContentView: View {
     @State var gpsLocationPickerPresent = false
     @State var pictureDirectoryPickerPresent = false
     @State var run = false
+
+    @State var photoPickerItems: [PhotosPickerItem] = []
+    @State var photoPickerProcessing = false
+    @State var photoPickerResult: PhotoPickerResult?
 
     private var canRun: Bool {
         !gpsLocation.isEmpty && !pictureDirectory.isEmpty
@@ -46,7 +51,7 @@ struct ContentView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Picture Directory").bold()
+                Text("Photos Folder").bold()
                 HStack(spacing: 8) {
                     TextField("Select a folder...", text: $pictureDirectory)
                         .textFieldStyle(.roundedBorder)
@@ -61,6 +66,22 @@ struct ContentView: View {
                             pictureDirectory = url.path
                         }
                     }
+                }
+                PhotosPicker(
+                    selection: $photoPickerItems,
+                    matching: .images,
+                    photoLibrary: .shared(),
+                ) {
+                    Text("Or select photos from System Library")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .disabled(gpsLocation.isEmpty)
+                .onChange(of: photoPickerItems) { _, items in
+                    guard !items.isEmpty else { return }
+                    processPhotoPicker(items: items)
                 }
             }
 
@@ -86,5 +107,46 @@ struct ContentView: View {
         }
         .frame(width: 444)
         .padding()
+        .sheet(isPresented: $photoPickerProcessing) {
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+                Text("Processing photos...")
+                    .font(.headline)
+            }
+            .frame(width: 200, height: 120)
+            .interactiveDismissDisabled()
+        }
+        .alert(
+            "Processing Complete",
+            isPresented: Binding(
+                get: { photoPickerResult != nil },
+                set: { if !$0 { photoPickerResult = nil } },
+            ),
+        ) {
+            Button("OK") { photoPickerResult = nil }
+        } message: {
+            if let result = photoPickerResult {
+                Text("\(result.successCount) updated, \(result.errorCount) error(s)")
+            }
+        }
+    }
+
+    private func processPhotoPicker(items: [PhotosPickerItem]) {
+        photoPickerProcessing = true
+        photoPickerItems = []
+
+        Task.detached {
+            let vm = ViewModel()
+            let result = await vm.processPhotoPickerItems(
+                items,
+                gpsFilePath: gpsLocation,
+                overwrite: overwrite,
+            )
+            await MainActor.run {
+                photoPickerProcessing = false
+                photoPickerResult = result
+            }
+        }
     }
 }

@@ -8,7 +8,7 @@
 import Foundation
 
 @Observable
-class ViewModel {
+class ViewModel: @unchecked Sendable {
     var logs: String = ""
     var completed: Bool = false
 

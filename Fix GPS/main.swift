@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import WindowAnimation
 
 struct FixerApp: App {
     var body: some Scene {

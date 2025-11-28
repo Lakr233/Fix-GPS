@@ -13,12 +13,15 @@ class ViewModel {
     var completed: Bool = false
 
     func print(_ items: Any..., separator: String = " ", terminator: String = "\n") {
+        let message = items.map { "\($0)" }.joined(separator: separator) + terminator
+        Swift.print(message, terminator: "")
         if Thread.isMainThread {
-            logs.append(items.map { "\($0)" }.joined(separator: separator) + terminator)
+            logs.append(message)
             if !logs.hasSuffix("\n") { logs.append("\n") }
         } else {
             DispatchQueue.main.asyncAndWait {
-                self.print(items, separator: separator, terminator: terminator)
+                self.logs.append(message)
+                if !self.logs.hasSuffix("\n") { self.logs.append("\n") }
             }
         }
     }

@@ -7,9 +7,9 @@
 
 import AppKit
 import Cocoa
-import CoreLocation
-import Foundation
 import Combine
+import Foundation
+import SwiftCSV
 
 class Worker: ObservableObject {
     @Published var logs: String = ""
@@ -38,7 +38,8 @@ class Worker: ObservableObject {
     func readingTimestamp(imageFile: URL) -> Date? {
         guard let dataProvider = CGDataProvider(filename: imageFile.path),
               let data = dataProvider.data,
-              let imageSource = CGImageSourceCreateWithData(data, nil) else {
+              let imageSource = CGImageSourceCreateWithData(data, nil)
+        else {
             print("[E] unable to load image")
             return nil
         }
@@ -53,23 +54,23 @@ class Worker: ObservableObject {
 
         let dateCandidates: [String?] = [
             (exif?[kCGImagePropertyExifDateTimeOriginal] as? String),
-            (exif?[kCGImagePropertyExifDateTimeDigitized] as? String),
-            (tiff?[kCGImagePropertyTIFFDateTime] as? String)
+            exif?[kCGImagePropertyExifDateTimeDigitized] as? String,
+            tiff?[kCGImagePropertyTIFFDateTime] as? String,
         ]
 
         let offsetCandidates: [String?] = [
             (exif?[kCGImagePropertyExifOffsetTimeOriginal] as? String),
-            (exif?[kCGImagePropertyExifOffsetTimeDigitized] as? String),
-            (exif?[kCGImagePropertyExifOffsetTime] as? String)
+            exif?[kCGImagePropertyExifOffsetTimeDigitized] as? String,
+            exif?[kCGImagePropertyExifOffsetTime] as? String,
         ]
 
         let subsecCandidates: [String?] = [
             (exif?[kCGImagePropertyExifSubsecTimeOriginal] as? String),
-            (exif?[kCGImagePropertyExifSubsecTimeDigitized] as? String),
-            (exif?[kCGImagePropertyExifSubsecTime] as? String)
+            exif?[kCGImagePropertyExifSubsecTimeDigitized] as? String,
+            exif?[kCGImagePropertyExifSubsecTime] as? String,
         ]
 
-        guard let rawDate = dateCandidates.compactMap({ $0 }).first else {
+        guard let rawDate = dateCandidates.compactMap(\.self).first else {
             if let attrs = try? FileManager.default.attributesOfItem(atPath: imageFile.path) {
                 if let c = attrs[.creationDate] as? Date { return c }
                 if let m = attrs[.modificationDate] as? Date { return m }
@@ -77,8 +78,8 @@ class Worker: ObservableObject {
             return nil
         }
 
-        let subsec = subsecCandidates.compactMap({ $0 }).first
-        let offset = offsetCandidates.compactMap({ $0 }).first
+        let subsec = subsecCandidates.compactMap(\.self).first
+        let offset = offsetCandidates.compactMap(\.self).first
 
         var candidateStrings: [String] = []
         if let sub = subsec, !sub.isEmpty {
@@ -100,7 +101,7 @@ class Worker: ObservableObject {
             "yyyy:MM:dd HH:mm:ss",
             "yyyy-MM-dd'T'HH:mm:ss.SSS ZZZZZ",
             "yyyy-MM-dd'T'HH:mm:ss ZZZZZ",
-            "yyyy-MM-dd'T'HH:mm:ss"
+            "yyyy-MM-dd'T'HH:mm:ss",
         ]
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -131,19 +132,40 @@ class Worker: ObservableObject {
             let speed: Double
         }
 
+        // Normalize header key: trim, lowercase, remove separators
+        func normalizeKey(_ key: String) -> String {
+            key.trimmingCharacters(in: .whitespaces)
+                .lowercased()
+                .replacingOccurrences(of: "-", with: "")
+                .replacingOccurrences(of: "_", with: "")
+        }
+
+        // Match header by prefix (first 3 chars) or full normalized name
+        func findValue(in row: [String: String], matching prefixes: [String]) -> String? {
+            for (key, value) in row {
+                let normalized = normalizeKey(key)
+                for prefix in prefixes {
+                    if normalized.hasPrefix(prefix) || normalized == prefix {
+                        return value
+                    }
+                }
+            }
+            return nil
+        }
+
         var locationList: [LocationRecord] = []
 
         print("[i] reading from \(gpsFile.path)")
         do {
             let csv = try CSV<Named>(url: gpsFile)
             for row in csv.rows {
-                // read LocationRecord from row as? [String : String] and convert to double all keys
-                guard let strTimestamp = row["dataTime"],
-                      let strLongitude = row["longitude"],
-                      let strLatitude = row["latitude"],
-                      let strAltitude = row["altitude"],
-                      let strHeading = row["heading"],
-                      let strSpeed = row["speed"]
+                // Flexible header matching with prefix support
+                guard let strTimestamp = findValue(in: row, matching: ["dat", "tim", "time"]),
+                      let strLongitude = findValue(in: row, matching: ["lon", "lng"]),
+                      let strLatitude = findValue(in: row, matching: ["lat"]),
+                      let strAltitude = findValue(in: row, matching: ["alt", "ele", "elevation"]),
+                      let strHeading = findValue(in: row, matching: ["hea", "dir", "bearing", "course"]),
+                      let strSpeed = findValue(in: row, matching: ["spe", "vel"])
                 else {
                     continue
                 }
@@ -162,7 +184,7 @@ class Worker: ObservableObject {
                     latitude: latitude,
                     altitude: altitude,
                     heading: heading,
-                    speed: speed
+                    speed: speed,
                 )
                 locationList.append(record)
             }
@@ -233,47 +255,50 @@ class Worker: ObservableObject {
             if CGImageMetadataCopyTagMatchingImageProperty(
                 imageProperties,
                 kCGImagePropertyGPSDictionary,
-                kCGImagePropertyGPSLatitude
+                kCGImagePropertyGPSLatitude,
             ) != nil || CGImageMetadataCopyTagMatchingImageProperty(
                 imageProperties,
                 kCGImagePropertyGPSDictionary,
-                kCGImagePropertyGPSLongitude
+                kCGImagePropertyGPSLongitude,
             ) != nil {
                 print("[i] GPS data already exists")
                 if !overwrite { return }
             }
 
-            let coornidate2D = CLLocationCoordinate2D(latitude: .init(lat), longitude: .init(lon))
+            // GPS EXIF standard requires absolute values for coordinates
+            // The direction is indicated by LatitudeRef (N/S) and LongitudeRef (E/W)
+            let absLatitude = abs(lat)
+            let absLongitude = abs(lon)
 
             CGImageMetadataSetValueMatchingImageProperty(
                 mutableMetadata,
                 kCGImagePropertyGPSDictionary,
                 kCGImagePropertyGPSLatitudeRef,
-                (lat < 0 ? "S" : "N") as CFTypeRef
+                (lat < 0 ? "S" : "N") as CFTypeRef,
             )
             CGImageMetadataSetValueMatchingImageProperty(
                 mutableMetadata,
                 kCGImagePropertyGPSDictionary,
                 kCGImagePropertyGPSLatitude,
-                coornidate2D.latitude as CFTypeRef
+                absLatitude as CFTypeRef,
             )
             CGImageMetadataSetValueMatchingImageProperty(
                 mutableMetadata,
                 kCGImagePropertyGPSDictionary,
                 kCGImagePropertyGPSLongitudeRef,
-                (lon < 0 ? "W" : "E") as CFTypeRef
+                (lon < 0 ? "W" : "E") as CFTypeRef,
             )
             CGImageMetadataSetValueMatchingImageProperty(
                 mutableMetadata,
                 kCGImagePropertyGPSDictionary,
                 kCGImagePropertyGPSLongitude,
-                coornidate2D.longitude as CFTypeRef
+                absLongitude as CFTypeRef,
             )
             CGImageMetadataSetValueMatchingImageProperty(
                 mutableMetadata,
                 kCGImagePropertyGPSDictionary,
                 kCGImagePropertyGPSAltitude,
-                alt as CFTypeRef
+                alt as CFTypeRef,
             )
 
             let finalMetadata = mutableMetadata as CGImageMetadata
@@ -287,7 +312,7 @@ class Worker: ObservableObject {
                 // Write atomically by replacing the original file
                 let tmpURL = imageFile.deletingLastPathComponent().appendingPathComponent(".tmp_\(UUID().uuidString)")
                 try (mutableData as NSData as Data).write(to: tmpURL)
-                let _ = try FileManager.default.replaceItemAt(imageFile, withItemAt: tmpURL)
+                _ = try FileManager.default.replaceItemAt(imageFile, withItemAt: tmpURL)
                 try FileManager.default.setAttributes(fileAttributes, ofItemAtPath: imageFile.path)
             } catch {
                 print("[E] failed to write")
@@ -333,7 +358,7 @@ class Worker: ObservableObject {
                     lat: location.latitude,
                     lon: location.longitude,
                     alt: location.altitude,
-                    overwrite: overwrite
+                    overwrite: overwrite,
                 )
             }
         }
@@ -351,683 +376,5 @@ extension Int {
             str = "0" + str
         }
         return str
-    }
-}
-
-// =====================================
-// SwiftCSV
-// =====================================
-
-//
-//  CSV+DelimiterGuessing.swift
-//  SwiftCSV
-//
-//  Created by Christian Tietze on 21.12.21.
-//  Copyright © 2021 SwiftCSV. All rights reserved.
-//
-
-import Foundation
-
-public extension CSVDelimiter {
-    static let recognized: [CSVDelimiter] = [.comma, .tab, .semicolon]
-
-    /// - Returns: Delimiter between cells based on the first line in the CSV. Falls back to `.comma`.
-    static func guessed(string: String) -> CSVDelimiter {
-        let recognizedDelimiterCharacters = CSVDelimiter.recognized.map(\.rawValue)
-
-        // Trim newline and spaces, but keep tabs (as delimiters)
-        var trimmedCharacters = CharacterSet.whitespacesAndNewlines
-        trimmedCharacters.remove("\t")
-        let line = string.trimmingCharacters(in: trimmedCharacters).firstLine
-
-        var index = line.startIndex
-        while index < line.endIndex {
-            let character = line[index]
-            switch character {
-            case "\"":
-                // When encountering an open quote, skip to the closing counterpart.
-                // If none is found, skip to end of line.
-
-                // 1) Advance one character to skip the quote
-                index = line.index(after: index)
-
-                // 2) Look for the closing quote and move current position after it
-                if index < line.endIndex,
-                   let closingQuoteInddex = line[index...].firstIndex(of: character)
-                {
-                    index = line.index(after: closingQuoteInddex)
-                } else {
-                    index = line.endIndex
-                }
-            case _ where recognizedDelimiterCharacters.contains(character):
-                return CSVDelimiter(rawValue: character)
-            default:
-                index = line.index(after: index)
-            }
-        }
-
-        // Fallback value
-        return .comma
-    }
-}
-
-//
-//  CSV.swift
-//  SwiftCSV
-//
-//  Created by Naoto Kaneko on 2/18/16.
-//  Copyright © 2016 Naoto Kaneko. All rights reserved.
-//
-
-import Foundation
-
-public protocol CSVView {
-    associatedtype Row
-    associatedtype Columns
-
-    var rows: [Row] { get }
-
-    /// Is `nil` if `loadColumns` was set to `false`.
-    var columns: Columns? { get }
-
-    init(header: [String], text: String, delimiter: CSVDelimiter, loadColumns: Bool, rowLimit: Int?) throws
-
-    func serialize(header: [String], delimiter: CSVDelimiter) -> String
-}
-
-/// CSV variant for which unique column names are assumed.
-///
-/// Example:
-///
-///     let csv = NamedCSV(...)
-///     let allIDs = csv.columns["id"]
-///     let firstEntry = csv.rows[0]
-///     let fullName = firstEntry["firstName"] + " " + firstEntry["lastName"]
-///
-public typealias NamedCSV = CSV<Named>
-
-/// CSV variant that exposes columns and rows as arrays.
-/// Example:
-///
-///     let csv = EnumeratedCSV(...)
-///     let allIds = csv.columns.filter { $0.header == "id" }.rows
-///
-public typealias EnumeratedCSV = CSV<Enumerated>
-
-/// For convenience, there's `EnumeratedCSV` to access fields in rows by their column index,
-/// and `NamedCSV` to access fields by their column names as defined in a header row.
-open class CSV<DataView: CSVView> {
-    public let header: [String]
-
-    /// Unparsed contents.
-    public let text: String
-
-    /// Used delimiter to parse `text` and to serialize the data again.
-    public let delimiter: CSVDelimiter
-
-    /// Underlying data representation of the CSV contents.
-    public let content: DataView
-
-    public var rows: [DataView.Row] {
-        content.rows
-    }
-
-    /// Is `nil` if `loadColumns` was set to `false` during initialization.
-    public var columns: DataView.Columns? {
-        content.columns
-    }
-
-    /// Load CSV data from a string.
-    ///
-    /// - Parameters:
-    ///   - string: CSV contents to parse.
-    ///   - delimiter: Character used to separate cells from one another in rows.
-    ///   - loadColumns: Whether to populate the `columns` dictionary (default is `true`)
-    ///   - rowLimit: Amount of rows to parse (default is `nil`).
-    /// - Throws: `CSVParseError` when parsing `string` fails.
-    public init(string: String, delimiter: CSVDelimiter, loadColumns: Bool = true, rowLimit: Int? = nil) throws {
-        text = string
-        self.delimiter = delimiter
-        header = try Parser.array(text: string, delimiter: delimiter, rowLimit: 1).first ?? []
-        content = try DataView(header: header, text: text, delimiter: delimiter, loadColumns: loadColumns, rowLimit: rowLimit)
-    }
-
-    /// Load CSV data from a string and guess its delimiter from `CSV.recognizedDelimiters`, falling back to `.comma`.
-    ///
-    /// - parameter string: CSV contents to parse.
-    /// - parameter loadColumns: Whether to populate the `columns` dictionary (default is `true`)
-    /// - throws: `CSVParseError` when parsing `string` fails.
-    public convenience init(string: String, loadColumns: Bool = true) throws {
-        let delimiter = CSVDelimiter.guessed(string: string)
-        try self.init(string: string, delimiter: delimiter, loadColumns: loadColumns)
-    }
-
-    /// Turn the CSV data into NSData using a given encoding
-    open func dataUsingEncoding(_ encoding: String.Encoding) -> Data? {
-        serialized.data(using: encoding)
-    }
-
-    /// Serialized form of the CSV data; depending on the View used, this may
-    /// perform additional normalizations.
-    open var serialized: String {
-        content.serialize(header: header, delimiter: delimiter)
-    }
-}
-
-extension CSV: CustomStringConvertible {
-    public var description: String {
-        serialized
-    }
-}
-
-func enquoteContentsIfNeeded(cell: String) -> String {
-    // Add quotes if value contains a comma
-    if cell.contains(",") {
-        return "\"\(cell)\""
-    }
-    return cell
-}
-
-public extension CSV {
-    /// Load a CSV file from `url`.
-    ///
-    /// - Parameters:
-    ///   - url: URL of the file (will be passed to `String(contentsOfURL:encoding:)` to load)
-    ///   - delimiter: Character used to separate separate cells from one another in rows.
-    ///   - encoding: Character encoding to read file (default is `.utf8`)
-    ///   - loadColumns: Whether to populate the columns dictionary (default is `true`)
-    /// - Throws: `CSVParseError` when parsing the contents of `url` fails, or file loading errors.
-    convenience init(url: URL, delimiter: CSVDelimiter, encoding: String.Encoding = .utf8, loadColumns: Bool = true) throws {
-        let contents = try String(contentsOf: url, encoding: encoding)
-
-        try self.init(string: contents, delimiter: delimiter, loadColumns: loadColumns)
-    }
-
-    /// Load a CSV file from `url` and guess its delimiter from `CSV.recognizedDelimiters`, falling back to `.comma`.
-    ///
-    /// - Parameters:
-    ///   - url: URL of the file (will be passed to `String(contentsOfURL:encoding:)` to load)
-    ///   - encoding: Character encoding to read file (default is `.utf8`)
-    ///   - loadColumns: Whether to populate the columns dictionary (default is `true`)
-    /// - Throws: `CSVParseError` when parsing the contents of `url` fails, or file loading errors.
-    convenience init(url: URL, encoding: String.Encoding = .utf8, loadColumns: Bool = true) throws {
-        let contents = try String(contentsOf: url, encoding: encoding)
-
-        try self.init(string: contents, loadColumns: loadColumns)
-    }
-}
-
-public extension CSV {
-    /// Load a CSV file as a named resource from `bundle`.
-    ///
-    /// - Parameters:
-    ///   - name: Name of the file resource inside `bundle`.
-    ///   - ext: File extension of the resource; use `nil` to load the first file matching the name (default is `nil`)
-    ///   - bundle: `Bundle` to use for resource lookup (default is `.main`)
-    ///   - delimiter: Character used to separate separate cells from one another in rows.
-    ///   - encoding: encoding used to read file (default is `.utf8`)
-    ///   - loadColumns: Whether to populate the columns dictionary (default is `true`)
-    /// - Throws: `CSVParseError` when parsing the contents of the resource fails, or file loading errors.
-    /// - Returns: `nil` if the resource could not be found
-    convenience init?(name: String, extension ext: String? = nil, bundle: Bundle = .main, delimiter: CSVDelimiter, encoding: String.Encoding = .utf8, loadColumns: Bool = true) throws {
-        guard let url = bundle.url(forResource: name, withExtension: ext) else {
-            return nil
-        }
-        try self.init(url: url, delimiter: delimiter, encoding: encoding, loadColumns: loadColumns)
-    }
-
-    /// Load a CSV file as a named resource from `bundle` and guess its delimiter from `CSV.recognizedDelimiters`, falling back to `.comma`.
-    ///
-    /// - Parameters:
-    ///   - name: Name of the file resource inside `bundle`.
-    ///   - ext: File extension of the resource; use `nil` to load the first file matching the name (default is `nil`)
-    ///   - bundle: `Bundle` to use for resource lookup (default is `.main`)
-    ///   - encoding: encoding used to read file (default is `.utf8`)
-    ///   - loadColumns: Whether to populate the columns dictionary (default is `true`)
-    /// - Throws: `CSVParseError` when parsing the contents of the resource fails, or file loading errors.
-    /// - Returns: `nil` if the resource could not be found
-    convenience init?(name: String, extension ext: String? = nil, bundle: Bundle = .main, encoding: String.Encoding = .utf8, loadColumns: Bool = true) throws {
-        guard let url = bundle.url(forResource: name, withExtension: ext) else {
-            return nil
-        }
-        try self.init(url: url, encoding: encoding, loadColumns: loadColumns)
-    }
-}
-
-//
-//  CSVDelimiter.swift
-//  SwiftCSV
-//
-//  Created by Christian Tietze on 01.07.22.
-//  Copyright © 2022 SwiftCSV. All rights reserved.
-//
-
-public enum CSVDelimiter: Equatable, ExpressibleByUnicodeScalarLiteral {
-    public typealias UnicodeScalarLiteralType = Character
-
-    case comma, semicolon, tab
-    case character(Character)
-
-    public init(unicodeScalarLiteral: Character) {
-        self.init(rawValue: unicodeScalarLiteral)
-    }
-
-    init(rawValue: Character) {
-        switch rawValue {
-        case ",": self = .comma
-        case ";": self = .semicolon
-        case "\t": self = .tab
-        default: self = .character(rawValue)
-        }
-    }
-
-    public var rawValue: Character {
-        switch self {
-        case .comma: ","
-        case .semicolon: ";"
-        case .tab: "\t"
-        case let .character(character): character
-        }
-    }
-}
-
-//
-//  EnumeratedCSVView.swift
-//  SwiftCSV
-//
-//  Created by Christian Tietze on 25/10/16.
-//  Copyright © 2016 Naoto Kaneko. All rights reserved.
-//
-
-import Foundation
-
-public struct Enumerated: CSVView {
-    public struct Column: Equatable {
-        public let header: String
-        public let rows: [String]
-    }
-
-    public typealias Row = [String]
-    public typealias Columns = [Column]
-
-    public private(set) var rows: [Row]
-    public private(set) var columns: Columns?
-
-    public init(header: [String], text: String, delimiter: CSVDelimiter, loadColumns: Bool = false, rowLimit: Int? = nil) throws {
-        rows = try {
-            var rows: [Row] = []
-            try Parser.enumerateAsArray(text: text, delimiter: delimiter, startAt: 1, rowLimit: rowLimit) { fields in
-                rows.append(fields)
-            }
-
-            // Fill in gaps at the end of rows that are too short.
-            return makingRectangular(rows: rows)
-        }()
-
-        columns = {
-            guard loadColumns else { return nil }
-            return header.enumerated().map { (index: Int, header: String) -> Column in
-                Column(
-                    header: header,
-                    rows: rows.map { $0[safe: index] ?? "" }
-                )
-            }
-        }()
-    }
-
-    public func serialize(header: [String], delimiter: CSVDelimiter) -> String {
-        let separator = String(delimiter.rawValue)
-
-        let head = header
-            .map(enquoteContentsIfNeeded(cell:))
-            .joined(separator: separator) + "\n"
-
-        let content = rows.map { row in
-            row.map(enquoteContentsIfNeeded(cell:))
-                .joined(separator: separator)
-        }.joined(separator: "\n")
-
-        return head + content
-    }
-}
-
-extension Collection {
-    subscript(safe index: Self.Index) -> Self.Iterator.Element? {
-        index < endIndex ? self[index] : nil
-    }
-}
-
-private func makingRectangular(rows: [[String]]) -> [[String]] {
-    let cellsPerRow = rows.map(\.count).max() ?? 0
-    return rows.map { row -> [String] in
-        let missingCellCount = cellsPerRow - row.count
-        let appendix = Array(repeating: "", count: missingCellCount)
-        return row + appendix
-    }
-}
-
-//
-//  NamedCSVView.swift
-//  SwiftCSV
-//
-//  Created by Christian Tietze on 22/10/16.
-//  Copyright © 2016 Naoto Kaneko. All rights reserved.
-//
-
-public struct Named: CSVView {
-    public typealias Row = [String: String]
-    public typealias Columns = [String: [String]]
-
-    public var rows: [Row]
-    public var columns: Columns?
-
-    public init(header: [String], text: String, delimiter: CSVDelimiter, loadColumns: Bool = false, rowLimit: Int? = nil) throws {
-        rows = try {
-            var rows: [Row] = []
-            try Parser.enumerateAsDict(header: header, content: text, delimiter: delimiter, rowLimit: rowLimit) { dict in
-                rows.append(dict)
-            }
-            return rows
-        }()
-
-        columns = {
-            guard loadColumns else { return nil }
-            var columns: Columns = [:]
-            for field in header {
-                columns[field] = rows.map { $0[field] ?? "" }
-            }
-            return columns
-        }()
-    }
-
-    public func serialize(header: [String], delimiter: CSVDelimiter) -> String {
-        let separator = String(delimiter.rawValue)
-
-        let head = header
-            .map(enquoteContentsIfNeeded(cell:))
-            .joined(separator: separator) + "\n"
-
-        let content = rows.map { row in
-            header
-                .map { cellID in row[cellID]! }
-                .map(enquoteContentsIfNeeded(cell:))
-                .joined(separator: separator)
-        }.joined(separator: "\n")
-
-        return head + content
-    }
-}
-
-//
-//  Parser.swift
-//  SwiftCSV
-//
-//  Created by Will Richardson on 13/04/16.
-//  Copyright © 2016 Naoto Kaneko. All rights reserved.
-//
-
-public extension CSV {
-    /// Parse the file and call a block on each row, passing it in as a list of fields.
-    /// - Parameters limitTo: Maximum absolute line number in the content, *not* maximum amount of rows.
-    @available(*, deprecated, message: "Use enumerateAsArray(startAt:rowLimit:_:) instead")
-    func enumerateAsArray(limitTo maxRow: Int? = nil, startAt: Int = 0, _ rowCallback: @escaping ([String]) -> Void) throws {
-        try Parser.enumerateAsArray(text: text, delimiter: delimiter, startAt: startAt, rowLimit: maxRow.map { $0 - startAt }, rowCallback: rowCallback)
-    }
-
-    /// Parse the CSV contents row by row from `start` for `rowLimit` amount of rows, or until the end of the input.
-    /// - Parameters:
-    ///   - startAt: Skip lines before this. Default value is `0` to start at the beginning.
-    ///   - rowLimit: Amount of rows to consume, beginning to count at `startAt`. Default value is `nil` to consume
-    ///     the whole input string.
-    ///   - rowCallback: Array of each row's columnar values, in order.
-    func enumerateAsArray(startAt: Int = 0, rowLimit: Int? = nil, _ rowCallback: @escaping ([String]) -> Void) throws {
-        try Parser.enumerateAsArray(text: text, delimiter: delimiter, startAt: startAt, rowLimit: rowLimit, rowCallback: rowCallback)
-    }
-
-    func enumerateAsDict(_ block: @escaping ([String: String]) -> Void) throws {
-        try Parser.enumerateAsDict(header: header, content: text, delimiter: delimiter, block: block)
-    }
-}
-
-enum Parser {
-    static func array(text: String, delimiter: CSVDelimiter, startAt offset: Int = 0, rowLimit: Int? = nil) throws -> [[String]] {
-        var rows = [[String]]()
-
-        try enumerateAsArray(text: text, delimiter: delimiter, startAt: offset, rowLimit: rowLimit) { row in
-            rows.append(row)
-        }
-
-        return rows
-    }
-
-    /// Parse `text` and provide each row to `rowCallback` as an array of field values, one for each column per
-    /// line of text, separated by `delimiter`.
-    ///
-    /// - Parameters:
-    ///   - text: Text to parse.
-    ///   - delimiter: Character to split row and header fields by (default is ',')
-    ///   - offset: Skip lines before this. Default value is `0` to start at the beginning.
-    ///   - rowLimit: Amount of rows to consume, beginning to count at `startAt`. Default value is `nil` to consume
-    ///     the whole input string.
-    ///   - rowCallback: Callback invoked for every parsed row between `startAt` and `limitTo` in `text`.
-    /// - Throws: `CSVParseError`
-    static func enumerateAsArray(text: String,
-                                 delimiter: CSVDelimiter,
-                                 startAt offset: Int = 0,
-                                 rowLimit: Int? = nil,
-                                 rowCallback: @escaping ([String]) -> Void) throws
-    {
-        let maxRowIndex = rowLimit.flatMap { $0 < 0 ? nil : offset + $0 }
-
-        var currentIndex = text.startIndex
-        let endIndex = text.endIndex
-
-        var fields = [String]()
-        let delimiter = delimiter.rawValue
-        var field = ""
-
-        var rowIndex = 0
-
-        func finishRow() {
-            defer {
-                rowIndex += 1
-                fields = []
-                field = ""
-            }
-
-            guard rowIndex >= offset else { return }
-            fields.append(String(field))
-            rowCallback(fields)
-        }
-
-        var state = ParsingState(
-            delimiter: delimiter,
-            finishRow: finishRow,
-            appendChar: {
-                guard rowIndex >= offset else { return }
-                field.append($0)
-            },
-            finishField: {
-                guard rowIndex >= offset else { return }
-                fields.append(field)
-                field = ""
-            }
-        )
-
-        func limitReached(_ rowNumber: Int) -> Bool {
-            guard let maxRowIndex else { return false }
-            return rowNumber >= maxRowIndex
-        }
-
-        while currentIndex < endIndex,
-              !limitReached(rowIndex)
-        {
-            let char = text[currentIndex]
-
-            try state.change(char)
-
-            currentIndex = text.index(after: currentIndex)
-        }
-
-        // Append remainder of the cache, unless we're past the limit already.
-        if !limitReached(rowIndex) {
-            if !field.isEmpty {
-                fields.append(field)
-            }
-
-            if !fields.isEmpty {
-                rowCallback(fields)
-            }
-        }
-    }
-
-    static func enumerateAsDict(header: [String], content: String, delimiter: CSVDelimiter, rowLimit: Int? = nil, block: @escaping ([String: String]) -> Void) throws {
-        let enumeratedHeader = header.enumerated()
-
-        // Start after the header
-        try enumerateAsArray(text: content, delimiter: delimiter, startAt: 1, rowLimit: rowLimit) { fields in
-            var dict = [String: String]()
-            for (index, head) in enumeratedHeader {
-                dict[head] = index < fields.count ? fields[index] : ""
-            }
-            block(dict)
-        }
-    }
-}
-
-//
-//  ParsingState.swift
-//  SwiftCSV
-//
-//  Created by Christian Tietze on 25/10/16.
-//  Copyright © 2016 Naoto Kaneko. All rights reserved.
-//
-
-public enum CSVParseError: Error {
-    case generic(message: String)
-    case quotation(message: String)
-}
-
-/// State machine of parsing CSV contents character by character.
-struct ParsingState {
-    private(set) var atStart = true
-    private(set) var parsingField = false
-    private(set) var parsingQuotes = false
-    private(set) var innerQuotes = false
-
-    let delimiter: Character
-    let finishRow: () -> Void
-    let appendChar: (Character) -> Void
-    let finishField: () -> Void
-
-    init(delimiter: Character,
-         finishRow: @escaping () -> Void,
-         appendChar: @escaping (Character) -> Void,
-         finishField: @escaping () -> Void)
-    {
-        self.delimiter = delimiter
-        self.finishRow = finishRow
-        self.appendChar = appendChar
-        self.finishField = finishField
-    }
-
-    /// - Throws: `CSVParseError`
-    mutating func change(_ char: Character) throws {
-        if atStart {
-            if char == "\"" {
-                atStart = false
-                parsingQuotes = true
-            } else if char == delimiter {
-                finishField()
-            } else if char.isNewline {
-                finishRow()
-            } else if char.isWhitespace {
-                // ignore whitespaces between fields
-            } else {
-                parsingField = true
-                atStart = false
-                appendChar(char)
-            }
-        } else if parsingField {
-            if innerQuotes {
-                if char == "\"" {
-                    appendChar(char)
-                    innerQuotes = false
-                } else {
-                    throw CSVParseError.quotation(message: "Can't have non-quote here: \(char)")
-                }
-            } else {
-                if char == "\"" {
-                    innerQuotes = true
-                } else if char == delimiter {
-                    atStart = true
-                    parsingField = false
-                    innerQuotes = false
-                    finishField()
-                } else if char.isNewline {
-                    atStart = true
-                    parsingField = false
-                    innerQuotes = false
-                    finishRow()
-                } else {
-                    appendChar(char)
-                }
-            }
-        } else if parsingQuotes {
-            if innerQuotes {
-                if char == "\"" {
-                    appendChar(char)
-                    innerQuotes = false
-                } else if char == delimiter {
-                    atStart = true
-                    parsingField = false
-                    innerQuotes = false
-                    finishField()
-                } else if char.isNewline {
-                    atStart = true
-                    parsingQuotes = false
-                    innerQuotes = false
-                    finishRow()
-                } else if char.isWhitespace {
-                    // ignore whitespaces between fields
-                } else {
-                    throw CSVParseError.quotation(message: "Can't have non-quote here: \(char)")
-                }
-            } else {
-                if char == "\"" {
-                    innerQuotes = true
-                } else {
-                    appendChar(char)
-                }
-            }
-        } else {
-            throw CSVParseError.generic(message: "me_irl")
-        }
-    }
-}
-
-//
-//  String+Lines.swift
-//  SwiftCSV
-//
-//  Created by Naoto Kaneko on 2/24/16.
-//  Copyright © 2016 Naoto Kaneko. All rights reserved.
-//
-
-extension String {
-    var firstLine: String {
-        var current = startIndex
-        while current < endIndex, self[current].isNewline == false {
-            current = index(after: current)
-        }
-        return String(self[..<current])
-    }
-}
-
-extension Character {
-    var isNewline: Bool {
-        self == "\n"
-            || self == "\r\n"
-            || self == "\r"
     }
 }
